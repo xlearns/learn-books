@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>饼图</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+
+      #canvas {
+        background: antiquewhite;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.4.4/dist/d3.min.js"></script>
+    <!-- <script src="https://cdn.bootcdn.net/ajax/libs/d3/7.4.4/d3.min.js"></script> -->
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+  </body>
+  <script>
+    const [width, height] = [window.innerWidth, window.innerHeight];
+    const canvas = document.getElementById("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    class Tip {
+      constructor() {
+        this.x = 0;
+        this.fontSize = 15;
+        this.y = 0;
+        this.text = "数据";
+        this.show = true;
+      }
+      draw(ctx) {
+        const { x, y, fontSize, text, show } = this;
+        const [padW, padH] = [15, 8];
+        if (!show) {
+          return;
+        }
+        ctx.save();
+        //  设置文字的大小和字体
+        ctx.font = `${fontSize}px arial`;
+        //  计算文字的宽度
+        const { width } = ctx.measureText(text);
+        // 设置颜色
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(x, y, width + padW * 2, fontSize + padH * 2);
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(text, x + padW, y + padH);
+        ctx.restore();
+      }
+    }
+    class Sector {
+      constructor(
+        radius = 100,
+        startAngle = 0,
+        endAngle = Math.PI / 2,
+        color = "chocolate"
+      ) {
+        this.radius = 0; //半径
+        this.startAngle = startAngle;
+        this.endAngle = endAngle;
+        this.color = color;
+        this.x = 0;
+        this.y = 0;
+        this.text = "标签文字";
+        this.data = 1000;
+        this.textAlign = "left";
+        this.p1 = {
+          x: 0,
+          y: 0,
+          d: 20,
+        };
+        this.p2 = {
+          x: 0,
+          y: 0,
+          d: 70,
+        };
+        this.p3 = {
+          x: 0,
+          y: 0,
+          d: 20,
+        };
+        this.p4 = {
+          x: 0,
+          y: 0,
+          d: 10,
+        };
+        this.realRadius = radius; //代表实际半径
+        this.expendRadius = radius + 20; //代表扩展的长度
+
+        this.state = 0; //代表模式
+        this.vr = 0; // 计算出来的半径
+        this.ar = 0.03; //半径加速度
+        this.bound = 0.6; //弹性速度
+      }
+      // 画线
+      draw(ctx) {
+        const {
+          x,
+          y,
+          radius,
+          startAngle,
+          endAngle,
+          textAlign,
+          color,
+          text,
+          p1,
+          p2,
+          p3,
+          p4,
+        } = this;
+        ctx.save();
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, radius, startAngle, endAngle);
+        ctx.fill();
+        //  开始画引导线
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.stroke();
+        ctx.save();
+        ctx.fillStyle = "000";
+        ctx.font = "14px arail";
+        ctx.textAlign = textAlign;
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, p4.x, p4.y);
+        ctx.restore();
+      }
+      //  设置引导文字
+      updatePoints() {
+        const { startAngle, endAngle, x, y, p1, p2, p3, p4, realRadius } = this;
+        const radius = realRadius;
+        const dir = (startAngle + endAngle) / 2;
+        // p1 点
+        const p1R = radius + p1.d;
+        p1.x = Math.cos(dir) * p1R + x;
+        p1.y = Math.sin(dir) * p1R + y;
+        // p2 点
+        const p2R = radius + p2.d;
+        p2.x = Math.cos(dir) * p2R + x;
+        p2.y = Math.sin(dir) * p2R + y;
+        //  p3 点
+        let n = 1;
+        if (p1.x < x) {
+          //  说明线条在左侧, 在左侧
+          this.textAlign = "right";
+          n = -1;
+        }
+        p3.x = p2.x + p3.d * n;
+        p3.y = p2.y;
+
+        p4.x = p3.x + p4.d * n;
+        p4.y = p3.y;
+      }
+      updateRad(diff) {
+        const { realRadius, state, expendRadius } = this;
+        switch (state) {
+          case 0:
+            this.expand(diff, realRadius);
+            break;
+          case 1:
+            // 鼠标在饼图上面,需要放大
+            this.expand(diff, expendRadius);
+            break;
+          case 2:
+            //  鼠标离开饼图,需要缩小
+            this.shrink(diff, realRadius);
+            break;
+        }
+      }
+      expand(diff, endR) {
+        const { ar, bound } = this;
+        this.vr += ar;
+        this.radius += this.vr * diff;
+        if (this.radius > endR) {
+          this.radius = endR;
+          this.vr *= -bound;
+        }
+      }
+      shrink(diff, endR) {
+        const { ar, bound } = this;
+        this.vr -= ar;
+        this.radius += this.vr * diff;
+        if (this.radius < endR) {
+          this.radius = endR;
+          this.vr *= -bound;
+        }
+      }
+    }
+    const item = new Sector();
+    item.x = 400;
+    item.y = 300;
+    // item.radius = 100
+    item.endAngle = (Math.PI * 3) / 2;
+    item.updatePoints();
+    // item.draw(ctx)
+    const tip = new Tip();
+    canvas.addEventListener("mousemove", (event) => {
+      const mousePos = getMousePost(event);
+      const result = containPoint(item, mousePos);
+      if (result) {
+        tip.show = true;
+        tip.text = item.data;
+        tip.x = mousePos.x + 20;
+        tip.y = mousePos.y + 20;
+        item.state = 1;
+      } else {
+        tip.show = false;
+        item.state = 2;
+      }
+      // render()
+    });
+    let time = new Date();
+    render();
+    function render() {
+      let now = new Date();
+      const diff = now - time;
+      time = now;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      item.updateRad(diff);
+      item.draw(ctx);
+      tip.draw(ctx);
+      // if (item.radius != item.realRadius){
+      requestAnimationFrame(render);
+      // }
+    }
+
+    // clientX,clientY
+    // 判断鼠标在 canvas 的位置
+    function getMousePost(event) {
+      // 获取鼠标的位置
+      const { clientX, clientY } = event;
+      //  获取 canvas 的边界位置
+      const { top, left } = canvas.getBoundingClientRect();
+      //  计算鼠标在 canvas 在位置
+      const x = clientX - left;
+      const y = clientY - top;
+      return {
+        x,
+        y,
+      };
+    }
+    //  判断是不是在 canvas上
+    function containPoint(item, mousePos) {
+      const { x, y, startAngle, endAngle, radius } = item;
+      const [subx, suby] = [mousePos.x - x, mousePos.y - y];
+      //圆心到鼠标 的位置
+      const len = Math.sqrt(subx * subx + suby * suby);
+      //判断是否在圆内
+      const b1 = len < radius;
+      // 判断是不是在 startAngle 和 endAngle
+      let dir = Math.atan2(suby, subx);
+      if (dir < 0) {
+        //  代表在圆心的左侧
+        dir += Math.PI * 2;
+      }
+      const b2 = dir >= startAngle && dir < endAngle;
+      return b1 && b2;
+    }
+  </script>
+</html>

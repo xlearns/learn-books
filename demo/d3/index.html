@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/d3/7.4.4/d3.min.js"></script>
+  </head>
+  <body>
+    <p></p>
+    <p></p>
+    <p></p>
+  </body>
+  <script>
+    let data = [1, 2, 3, 4, 5];
+    let dom = d3.selectAll("p");
+    let update = dom.data(data);
+    let enter = update.enter();
+    let exit = update.exit();
+    update.html((d, i) => {
+      return d;
+    });
+    enter.append("p").text(() => {
+      return "hello";
+    });
+    exit.remove();
+  </script>
+</html>
